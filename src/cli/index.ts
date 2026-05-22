@@ -14,6 +14,7 @@ import { config as loadDotenv } from 'dotenv';
 import { runArchitect } from '../agents/architect.js';
 import { runBuilder } from '../agents/builder.js';
 import { runListener } from '../agents/listener.js';
+import { runReviewer } from '../agents/reviewer.js';
 import { runSpec } from '../agents/spec.js';
 import { runTester } from '../agents/tester.js';
 import { DEFAULT_KANBEI_CONFIG, loadKanbeiConfig } from '../config/index.js';
@@ -41,6 +42,7 @@ const ACTIVE_PHASES: KanbeiPhase[] = [
   'arch',
   'building',
   'testing',
+  'review',
 ];
 
 function loadConfig(configPath: string) {
@@ -90,6 +92,7 @@ async function runMain(githubUrl: string, options: RunOptions): Promise<number> 
     architect: runArchitect,
     builder: runBuilder,
     tester: runTester,
+    reviewer: runReviewer,
   };
 
   const deps: OrchestratorDeps = {
