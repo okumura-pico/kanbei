@@ -34,6 +34,7 @@ type AgentResult = {
   nextPhase?: KanbeiPhase;     // status === 'ready_for_next_phase' のとき
   summary: string;             // オーケストレータログ用 1〜3 行
   questions?: string[];        // status === 'needs_human' のとき
+  tokensUsed?: number;         // 今回呼び出しで消費したトークン数 (任意、Safety に集計される)
 };
 ```
 

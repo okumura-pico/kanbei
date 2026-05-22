@@ -30,6 +30,8 @@ export interface AgentResult {
   nextPhase?: KanbeiPhase;
   summary: string;
   questions?: string[];
+  /** Tokens consumed during this agent run. Orchestrator feeds this into SafetyTracker. */
+  tokensUsed?: number;
 }
 
 export interface SafetyBudget {
