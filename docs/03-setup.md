@@ -1,6 +1,6 @@
 # Kanbei セットアップ手順
 
-最終更新: 2026-05-22
+最終更新: 2026-05-22 (kanbei init / GitHub Actions 追記)
 
 ローカルで `kanbei <github-url>` を動かすまでの初回セットアップ手順。基本方針は `docs/00-overview.md` / 認証フローの詳細は `docs/01-architecture.md` §7。
 
@@ -134,7 +134,14 @@ Kanbei は Issue ラベルでフェーズ管理する (`docs/01-architecture.md`
 
 色は自由。後で `kanbei.config.yaml` の `labels.phases` を書き換えれば、既存の命名規約に合わせて変更も可能。
 
-> 自動作成スクリプトは P1 後半で `kanbei init <repo-url>` として用意予定。今は GitHub UI で手作業で OK。
+**`kanbei init` で自動作成 (推奨)**:
+
+```bash
+npx tsx src/cli/index.ts init https://github.com/owner/repo
+```
+
+9 個のラベルを一括作成する。既に存在するラベルはスキップするので冪等に実行できる。
+`--config` で別の `kanbei.config.yaml` を指定した場合はそのプレフィックス・マッピングを使用する。
 
 ---
 
@@ -146,14 +153,17 @@ Kanbei は Issue ラベルでフェーズ管理する (`docs/01-architecture.md`
 npm install
 ```
 
-CLI のパース動作を確認 (オーケストレータは未実装なので exit 2 で「未実装」を返す):
+`.env` 設定後の動作確認 (`--dry-run` は GitHub 認証・書き込みをスキップする):
 
 ```bash
-npx tsx src/cli/index.ts https://github.com/owner/repo
-# → kanbei: would scan owner/repo for kanbei-labeled issues — orchestrator not yet implemented (...)
+# リポジトリ URL — ラベル付き Issue をスキャンする
+npx tsx src/cli/index.ts run https://github.com/owner/repo --dry-run
 
-npx tsx src/cli/index.ts https://github.com/owner/repo/issues/1
-# → kanbei: would drive owner/repo issue #1 — orchestrator not yet implemented (...)
+# Issue URL — その Issue を 1 サイクル処理する
+npx tsx src/cli/index.ts run https://github.com/owner/repo/issues/1 --dry-run
+
+# ラベル初期化 (dry-run なし — GitHub App 認証が必要)
+npx tsx src/cli/index.ts init https://github.com/owner/repo
 ```
 
 テスト全件 pass を確認:
@@ -173,8 +183,32 @@ npm test
 
 ---
 
-## 8. 残課題
+## 8. GitHub Actions (自律モード)
 
-- `kanbei init <repo-url>` でラベル一括作成
-- `.env` の自動ロード (CLI 起動時)
-- GitHub Actions 移行手順 (P5 で追記予定)
+`.github/workflows/kanbei.yml` が含まれているので、以下の **Repository secrets** を設定するだけで自律動作が有効になる:
+
+| Secret 名 | 値 |
+|-----------|-----|
+| `KANBEI_APP_ID` | GitHub App の App ID |
+| `KANBEI_APP_INSTALLATION_ID` | インストール ID |
+| `KANBEI_APP_PRIVATE_KEY` | PEM 本文 (改行含む) |
+| `ANTHROPIC_API_KEY` | Anthropic API キー |
+| `KANBEI_GITHUB_TOKEN` | ブランチ push 用 PAT または App トークン (`contents:write`) |
+
+トリガー条件:
+- **`kanbei:` ラベルを Issue に付けた瞬間** → `run` コマンドが起動
+- **`kanbei:awaiting-human` の Issue に人間がコメントした瞬間** → `run` で Listener が回答を拾う
+
+同一 Issue への並列実行は `concurrency` グループで直列化される。
+
+### 無効化
+
+`KANBEI_DISABLED=true` を環境変数 / `.env` に設定すると Safety の L5 kill switch が働き、どの Issue も処理されない。
+
+---
+
+## 9. 残課題
+
+- Actions の `KANBEI_GITHUB_TOKEN` を GitHub App のインストールトークン自動取得に変更
+- `kanbei.config.yaml` の `branchPattern` を Organizations 規約に合わせる
+- マルチリポジトリ対応 (現在はセルフホスティング前提)
