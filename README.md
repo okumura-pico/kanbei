@@ -101,6 +101,28 @@ Each agent collaborates asynchronously via GitHub Issues.
 
 ---
 
+## 🧪 Usage
+
+The CLI takes a GitHub repository URL as its primary argument.
+
+```bash
+# Scan a repository: pick up Kanbei-labeled Issues and drive them forward
+kanbei https://github.com/owner/repo
+
+# Process a single Issue
+kanbei https://github.com/owner/repo/issues/42
+```
+
+Before running, copy `.env.example` to `.env` and fill in your Anthropic API
+key and GitHub App credentials. See `docs/03-setup.md` (forthcoming) for
+the GitHub App setup steps.
+
+> **Status:** the CLI argument parsing is in place; the orchestrator and
+> agents are landing through P1–P4. See `docs/00-overview.md` for the
+> roadmap.
+
+---
+
 ## 🏷️ Concept
 
 > From Issue to Working Software.

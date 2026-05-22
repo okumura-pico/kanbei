@@ -11,6 +11,13 @@ For project concept and roadmap, see `README.md` and `docs/00-overview.md`.
 - **Target repository**: Kanbei itself (self-hosting / dogfooding)
 - **Bot identity**: GitHub App (JWT → installation token via `@octokit/auth-app`). Private key lives in `.env` locally (gitignored) and in a secret manager in production.
 
+## CLI shape (decided 2026-05-22)
+
+- Binary name: `kanbei`
+- Primary usage: `kanbei <github-url>` where `<github-url>` is either a repo URL (`https://github.com/owner/repo`) or an Issue URL (`https://github.com/owner/repo/issues/N`).
+- A repo URL means "scan the repo's Kanbei-labeled Issues"; an Issue URL means "drive this specific Issue one cycle".
+- Do not invent subcommands without need — the URL is the noun; flags layer on top only when truly necessary.
+
 ## Language policy (hybrid)
 
 - **English**: `README.md`, `CLAUDE.md`, source code (identifiers, comments, docstrings), commit messages, PR titles/descriptions, GitHub Issue/PR comments authored by Kanbei.

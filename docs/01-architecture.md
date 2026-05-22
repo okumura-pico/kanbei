@@ -1,6 +1,6 @@
 # Kanbei アーキテクチャ詳細
 
-最終更新: 2026-05-22
+最終更新: 2026-05-22 (CLI Usage を URL 主引数に整合)
 
 `docs/00-overview.md` で確定した方針を前提に、システム内部の構造・状態遷移・安全装置を詳細化する。エージェント個別の system prompt や許可ツール集合は `docs/02-agents.md` に切り分ける。
 
@@ -207,7 +207,9 @@ kanbei/
 ## 9. データフロー (1 サイクル)
 
 ```
-1. CLI: `kanbei run --issue 42`
+1. CLI: `kanbei https://github.com/owner/repo/issues/42`
+   → URL をパースして {owner, repo, issue: 42} を抽出
+   → リポジトリ URL (Issue 番号なし) の場合は対象 Issue を Kanbei ラベル付き一覧から選定
 2. Orchestrator:
    a. Octokit 認証 (Installation Token)
    b. Issue #42 を取得

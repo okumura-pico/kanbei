@@ -1,6 +1,6 @@
 # Kanbei 開発計画 — 全体検討メモ
 
-最終更新: 2026-05-22 (主要 6 論点すべて確定)
+最終更新: 2026-05-22 (主要 6 論点確定 + CLI Usage 仕様確定)
 
 ## 1. プロジェクト現状
 
@@ -37,6 +37,15 @@
 - Kanbei は将来 Kanbei リポジトリの Issue を自身で処理し、自身に PR を出す
 - ただし P0〜P1 までは「鶏と卵」状態のため人間が手で作る
 - Kanbei が動き始めるには事前にリポジトリを GitHub にリモート push しておく必要あり
+
+### CLI Usage (確定 2026-05-22)
+
+- バイナリ名: **`kanbei`**
+- 基本形: **`kanbei <github-url>`** を主引数とする
+  - `kanbei https://github.com/owner/repo` → リポジトリ全体の Kanbei ラベル付き Issue を巡回処理
+  - `kanbei https://github.com/owner/repo/issues/42` → 特定 Issue を 1 サイクル処理
+- サブコマンドは原則作らない。引数は URL を主役にし、フラグは本当に必要な場合のみ付け加える
+- 補助フラグ (将来候補): `--once` (常駐ループしない明示), `--dry-run` (副作用を抑止), `--config <path>` (設定ファイル指定)
 
 ### GitHub App 採用の含意
 - App private key (PEM) の安全な保管が必要 (ローカルは `.gitignore` 対象の `.env` / 本番は Secret Manager)
