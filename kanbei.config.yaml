@@ -32,6 +32,7 @@ agents:
   architect: { model: "" }
   builder: { model: "" }
   tester: { model: "" }
+  reviewer: { model: "" }
 
 # Branch naming pattern used by Builder. Tokens: <n> = issue number, <slug> = slugified title.
 branchPattern: "kanbei/issue-<n>-<slug>"

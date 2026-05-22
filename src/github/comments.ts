@@ -10,6 +10,7 @@ const AGENT_NAMES = new Set<AgentName>([
   'architect',
   'builder',
   'tester',
+  'reviewer',
 ]);
 
 // Marker must appear at the very start of the comment body so that a

@@ -51,7 +51,7 @@ export interface RunSummary {
   finalPhase: KanbeiPhase | null;
 }
 
-const TERMINAL_PHASES = new Set<KanbeiPhase>(['review', 'done', 'awaiting-human', 'error']);
+const TERMINAL_PHASES = new Set<KanbeiPhase>(['done', 'awaiting-human', 'error']);
 
 const PHASE_TO_AGENT: Record<KanbeiPhase, AgentName | null> = {
   gathering: 'listener',
@@ -59,7 +59,7 @@ const PHASE_TO_AGENT: Record<KanbeiPhase, AgentName | null> = {
   arch: 'architect',
   building: 'builder',
   testing: 'tester',
-  review: null,
+  review: 'reviewer',
   'awaiting-human': null,
   done: null,
   error: null,

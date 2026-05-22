@@ -44,6 +44,7 @@ const AgentsSchema = z
     architect: AgentEntrySchema,
     builder: AgentEntrySchema,
     tester: AgentEntrySchema,
+    reviewer: AgentEntrySchema,
   })
   .default({});
 

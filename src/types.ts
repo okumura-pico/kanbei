@@ -17,7 +17,7 @@ export type KanbeiPhase = (typeof KANBEI_PHASES)[number];
 
 export const KANBEI_LABEL_PREFIX = 'kanbei:';
 
-export type AgentName = 'listener' | 'spec' | 'architect' | 'builder' | 'tester';
+export type AgentName = 'listener' | 'spec' | 'architect' | 'builder' | 'tester' | 'reviewer';
 
 export type AgentStatus =
   | 'ready_for_next_phase'
