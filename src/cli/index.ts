@@ -15,6 +15,7 @@ import { createGithubAppClient, loadGithubAppConfig } from '../github/client.js'
 import { labelForPhase } from '../github/labels.js';
 import { OctokitRepoState } from '../github/octokitRepoState.js';
 import { parseGithubTarget } from '../github/url.js';
+import { runListener } from '../agents/listener.js';
 import { runIssue, type AgentRunner, type OrchestratorDeps } from '../orchestrator/index.js';
 import { SafetyTracker } from '../safety/index.js';
 import type { AgentName, KanbeiPhase } from '../types.js';
@@ -70,10 +71,9 @@ async function main(githubUrl: string, options: CliOptions): Promise<number> {
     repo: target.repo,
   });
 
-  // Agents are not yet implemented; the orchestrator will report
-  // `no-runner` events and exit. That's the expected MVP behaviour
-  // until P2 lands.
-  const agents: Partial<Record<AgentName, AgentRunner>> = {};
+  const agents: Partial<Record<AgentName, AgentRunner>> = {
+    listener: runListener,
+  };
 
   const deps: OrchestratorDeps = {
     repo,
