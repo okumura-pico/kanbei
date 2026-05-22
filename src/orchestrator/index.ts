@@ -22,6 +22,8 @@ export interface AgentContext {
   config: KanbeiConfig;
   /** Snapshot of remaining safety budget at dispatch time. */
   safety: SafetyBudget;
+  /** Live repo handle — agents may write comments and body sections. */
+  repo: RepoState;
 }
 
 export type AgentRunner = (ctx: AgentContext) => Promise<AgentResult>;
@@ -142,6 +144,7 @@ export async function runIssue(
       comments,
       config,
       safety: safety.remaining(),
+      repo,
     });
     emit({ type: 'agent-result', agent: agentName, phase, result });
     if (typeof result.tokensUsed === 'number') safety.recordTokens(result.tokensUsed);

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_KANBEI_CONFIG } from '../../src/config/index.js';
 import type { AgentContext } from '../../src/orchestrator/index.js';
+import { InMemoryRepoState } from '../_helpers/inMemoryRepoState.js';
 
 // Mock the SDK before importing the agent under test.
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -25,6 +26,7 @@ function makeCtx(overrides: Partial<AgentContext> = {}): AgentContext {
     comments: [],
     config: DEFAULT_KANBEI_CONFIG,
     safety: { remainingIterations: 10, remainingTokens: 100_000 },
+    repo: new InMemoryRepoState(),
     ...overrides,
   };
 }
