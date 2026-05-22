@@ -16,6 +16,7 @@ import { labelForPhase } from '../github/labels.js';
 import { OctokitRepoState } from '../github/octokitRepoState.js';
 import { parseGithubTarget } from '../github/url.js';
 import { runArchitect } from '../agents/architect.js';
+import { runBuilder } from '../agents/builder.js';
 import { runListener } from '../agents/listener.js';
 import { runSpec } from '../agents/spec.js';
 import { runIssue, type AgentRunner, type OrchestratorDeps } from '../orchestrator/index.js';
@@ -77,6 +78,7 @@ async function main(githubUrl: string, options: CliOptions): Promise<number> {
     listener: runListener,
     spec: runSpec,
     architect: runArchitect,
+    builder: runBuilder,
   };
 
   const deps: OrchestratorDeps = {
