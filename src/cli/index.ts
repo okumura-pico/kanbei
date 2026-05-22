@@ -16,6 +16,7 @@ import { labelForPhase } from '../github/labels.js';
 import { OctokitRepoState } from '../github/octokitRepoState.js';
 import { parseGithubTarget } from '../github/url.js';
 import { runListener } from '../agents/listener.js';
+import { runSpec } from '../agents/spec.js';
 import { runIssue, type AgentRunner, type OrchestratorDeps } from '../orchestrator/index.js';
 import { SafetyTracker } from '../safety/index.js';
 import type { AgentName, KanbeiPhase } from '../types.js';
@@ -73,6 +74,7 @@ async function main(githubUrl: string, options: CliOptions): Promise<number> {
 
   const agents: Partial<Record<AgentName, AgentRunner>> = {
     listener: runListener,
+    spec: runSpec,
   };
 
   const deps: OrchestratorDeps = {
