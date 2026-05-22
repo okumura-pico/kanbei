@@ -1,6 +1,6 @@
 # Kanbei エージェント仕様
 
-最終更新: 2026-05-22
+最終更新: 2026-05-22 (Reviewer agent 追加)
 
 `docs/01-architecture.md` で定義した枠組み (オーケストレータ・状態機械・コメント規約) の上に乗る、5 つの専門エージェントの責務・入出力・許可ツール・終了条件を定義する。
 
@@ -244,26 +244,61 @@ Builder が出した PR に対してテストを追加・補強し、CI 結果�
 
 ---
 
-## 6. エージェント間の責任境界 (まとめ)
+## 6. Reviewer Agent
 
-| 対象 | Listener | Spec | Architect | Builder | Tester |
-|------|:--------:|:----:|:---------:|:-------:|:------:|
-| Issue 本文 (人間部分) | 読 | 読 | 読 | 読 | 読 |
-| SPEC セクション | — | 書 | 読 | 読 | 読 |
-| ARCH セクション | — | — | 書 | 読 | 読 |
-| PLAN セクション | — | — | 書 | 書 (チェック更新) | 読 |
-| Issue コメント | 書 | 書 | 書 | 書 | 書 |
-| プロダクトコード | — | — | — | 書 | 読 |
-| テストコード | — | — | — | 書 | 書 |
-| ブランチ作成 | — | — | — | 〇 | — |
-| PR open | — | — | — | 〇 | — |
-| PR コメント | — | — | — | 書 | 書 |
+### 責務
+Tester が green にした PR を SPEC の Acceptance Criteria と照合し、approve または request-changes を行う。approve なら Issue フェーズを `done` に移行する。
+
+### 動作概要
+1. `gh pr list --head <branch>` で PR を特定 (マージ済みの場合は即 approve 扱い)
+2. `gh pr diff <PR-number>` で差分を取得し、変更ファイルを精査
+3. SPEC の各 AC を確認し、さらに以下を確認:
+   - セキュリティ問題 (インジェクション、秘密情報のコミット等)
+   - 明らかなバグ・ロジックエラー
+   - システム境界での入力バリデーション漏れ
+   - 既存コードとのスタイル整合性
+4. 判定:
+   - 全 AC 充足 + 致命的問題なし → `gh pr review <PR-number> --approve`、`ready_for_next_phase` (`nextPhase: 'done'`)
+   - 問題あり → `gh pr review <PR-number> --request-changes`、`needs_retry` (summary に具体的フィードバック)
+   - 人間の判断が必要 → `needs_human`
+
+### 終了条件
+- PR 全 AC 充足 → `ready_for_next_phase` (`nextPhase: 'done'`)
+- 実装不備 → `needs_retry` (Builder に差し戻し)
+- 外部サービス連携など自動確認不能 → `needs_human`
+
+### 許可ツール
+- `read.issue`, `read.comments`, `repo.read`
+- `pr.review` (`gh pr review --approve` / `--request-changes`)
+- `write.comment`
+
+### 触らないもの
+- プロダクトコード・テストコード (書き換え不可)
+- Issue 本文セクション (SPEC / ARCH / PLAN)
+
+---
+
+## 7. エージェント間の責任境界 (まとめ)
+
+| 対象 | Listener | Spec | Architect | Builder | Tester | Reviewer |
+|------|:--------:|:----:|:---------:|:-------:|:------:|:--------:|
+| Issue 本文 (人間部分) | 読 | 読 | 読 | 読 | 読 | 読 |
+| SPEC セクション | — | 書 | 読 | 読 | 読 | 読 |
+| ARCH セクション | — | — | 書 | 読 | 読 | 読 |
+| PLAN セクション | — | — | 書 | 書 (チェック更新) | 読 | 読 |
+| Issue コメント | 書 | 書 | 書 | 書 | 書 | 書 |
+| プロダクトコード | — | — | — | 書 | 読 | 読 |
+| テストコード | — | — | — | 書 | 書 | 読 |
+| ブランチ作成 | — | — | — | 〇 | — | — |
+| PR open | — | — | — | 〇 | — | — |
+| PR コメント | — | — | — | 書 | 書 | 書 |
+| PR review (approve/changes) | — | — | — | — | — | 〇 |
 
 「書」は対応するセクション / コメントマーカーに限る。他エージェントの成果物は読むだけで書き換えない。
 
 ---
 
-## 7. 残課題
+## 8. 残課題
 
 - 各エージェントの system prompt 本文 (テンプレート) は P2〜P4 で実装時に確定
 - `repoContext` の生成ロジック (どこまで自動で渡し、何を要求時取得とするか) は P1 で詳細化
