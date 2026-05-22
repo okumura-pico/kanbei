@@ -15,6 +15,7 @@ import { createGithubAppClient, loadGithubAppConfig } from '../github/client.js'
 import { labelForPhase } from '../github/labels.js';
 import { OctokitRepoState } from '../github/octokitRepoState.js';
 import { parseGithubTarget } from '../github/url.js';
+import { runArchitect } from '../agents/architect.js';
 import { runListener } from '../agents/listener.js';
 import { runSpec } from '../agents/spec.js';
 import { runIssue, type AgentRunner, type OrchestratorDeps } from '../orchestrator/index.js';
@@ -75,6 +76,7 @@ async function main(githubUrl: string, options: CliOptions): Promise<number> {
   const agents: Partial<Record<AgentName, AgentRunner>> = {
     listener: runListener,
     spec: runSpec,
+    architect: runArchitect,
   };
 
   const deps: OrchestratorDeps = {
