@@ -19,6 +19,7 @@ import { runArchitect } from '../agents/architect.js';
 import { runBuilder } from '../agents/builder.js';
 import { runListener } from '../agents/listener.js';
 import { runSpec } from '../agents/spec.js';
+import { runTester } from '../agents/tester.js';
 import { runIssue, type AgentRunner, type OrchestratorDeps } from '../orchestrator/index.js';
 import { SafetyTracker } from '../safety/index.js';
 import type { AgentName, KanbeiPhase } from '../types.js';
@@ -79,6 +80,7 @@ async function main(githubUrl: string, options: CliOptions): Promise<number> {
     spec: runSpec,
     architect: runArchitect,
     builder: runBuilder,
+    tester: runTester,
   };
 
   const deps: OrchestratorDeps = {
