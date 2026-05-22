@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_KANBEI_CONFIG } from '../../src/config/index.js';
-import { isKanbeiComment, wrapComment } from '../../src/github/comments.js';
+import { isKanbeiComment } from '../../src/github/comments.js';
 import type { AgentContext } from '../../src/orchestrator/index.js';
 import { InMemoryRepoState } from '../_helpers/inMemoryRepoState.js';
 

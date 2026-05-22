@@ -129,9 +129,9 @@ describe('runIssue', () => {
       },
       { id: 3, body: 'second human msg', user: { login: 'bob', type: 'User' } },
     ]);
-    const listener: AgentRunner = vi.fn(async ({ comments }) => {
+    const listener: AgentRunner = vi.fn(async ({ comments }: Parameters<AgentRunner>[0]) => {
       expect(comments.map((c) => c.id)).toEqual([1, 3]);
-      return { status: 'needs_human', summary: 'ok' };
+      return { status: 'needs_human' as const, summary: 'ok' };
     });
     await runIssue(buildDeps(repo, { listener }), 1);
     expect(listener).toHaveBeenCalledOnce();
