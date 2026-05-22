@@ -1,0 +1,37 @@
+# Kanbei runtime configuration.
+# Loaded by src/config — schema is validated with Zod (lands in P1/P2).
+
+safety:
+  # Max orchestrator iterations per Issue lifetime.
+  maxIterationsPerIssue: 50
+  # Max consecutive iterations in the same phase before forcing kanbei:error.
+  maxIterationsPerPhase: 5
+  # Cumulative token cap per Issue lifetime (input + output combined).
+  maxTokensPerIssue: 500000
+
+labels:
+  prefix: "kanbei:"
+  # Phase ↔ label mapping (one-to-one). Customising names here lets a
+  # repo align with existing label conventions.
+  phases:
+    gathering: gathering
+    spec: spec
+    arch: arch
+    building: building
+    testing: testing
+    review: review
+    awaitingHuman: awaiting-human
+    done: done
+    error: error
+
+agents:
+  # Each entry can override the model used for that role.
+  # Empty string falls back to the SDK default.
+  listener: { model: "" }
+  spec: { model: "" }
+  architect: { model: "" }
+  builder: { model: "" }
+  tester: { model: "" }
+
+# Branch naming pattern used by Builder. Tokens: <n> = issue number, <slug> = slugified title.
+branchPattern: "kanbei/issue-<n>-<slug>"
