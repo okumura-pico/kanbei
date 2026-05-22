@@ -2,8 +2,9 @@
 //
 // Turns the requirements gathered by the Listener into a structured
 // spec written into the KANBEI_SPEC section of the issue body.
+// Uses @anthropic-ai/sdk directly (no Claude Code subprocess).
 
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { anthropicQuery } from './anthropicQuery.js';
 import { readSection, upsertSection } from '../github/body.js';
 import { wrapComment } from '../github/comments.js';
 import type { AgentContext } from '../orchestrator/index.js';
@@ -40,11 +41,8 @@ Write a spec in this exact markdown template — keep every heading, fill in the
 Rules:
 - Every section must be present and non-empty (use "None" for truly empty ones).
 - Be concrete; avoid vague language like "good performance" — quantify where possible.
+- If you discover a high-impact ambiguity that blocks you, do NOT write a partial spec. Return status "needs_human" with your questions.
 - Output ONLY the structured JSON, no surrounding prose.`;
-
-const CLARIFICATION_PROMPT = `${SYSTEM_PROMPT}
-
-If, while writing the spec, you discover a high-impact ambiguity that blocks you, do NOT write a partial spec. Instead return status "needs_human" with your questions.`;
 
 function buildPrompt(ctx: AgentContext): string {
   const existingSpec = readSection(ctx.issue.body, 'SPEC');
@@ -75,67 +73,53 @@ function buildPrompt(ctx: AgentContext): string {
   return lines.join('\n');
 }
 
+interface SpecOutput {
+  status: AgentResult['status'];
+  nextPhase?: string;
+  summary: string;
+  specMarkdown?: string;
+  questions?: string[];
+}
+
 export async function runSpec(ctx: AgentContext): Promise<AgentResult> {
   const model = ctx.config.agents.spec.model || DEFAULT_MODEL;
 
-  const q = query({
-    prompt: buildPrompt(ctx),
-    options: {
+  let result: { output: SpecOutput; tokensUsed: number };
+
+  try {
+    result = await anthropicQuery<SpecOutput>({
       model,
-      systemPrompt: CLARIFICATION_PROMPT,
-      tools: [],
-      persistSession: false,
-      outputFormat: {
-        type: 'json_schema',
-        schema: {
-          type: 'object',
-          required: ['status', 'summary'],
-          properties: {
-            status: {
-              type: 'string',
-              enum: ['ready_for_next_phase', 'needs_human', 'needs_retry', 'error'],
-            },
-            nextPhase: { type: 'string' },
-            summary: { type: 'string' },
-            specMarkdown: { type: 'string' },
-            questions: { type: 'array', items: { type: 'string' } },
+      system: SYSTEM_PROMPT,
+      prompt: buildPrompt(ctx),
+      toolName: 'spec_output',
+      schema: {
+        type: 'object',
+        required: ['status', 'summary'],
+        properties: {
+          status: {
+            type: 'string',
+            enum: ['ready_for_next_phase', 'needs_human', 'needs_retry', 'error'],
           },
-          additionalProperties: false,
+          nextPhase: { type: 'string' },
+          summary: { type: 'string' },
+          specMarkdown: { type: 'string' },
+          questions: { type: 'array', items: { type: 'string' } },
         },
+        additionalProperties: false,
       },
-    },
-  });
-
-  let totalTokens = 0;
-  let structured: unknown = null;
-
-  for await (const msg of q) {
-    if (msg.type === 'result') {
-      if (msg.subtype === 'success') {
-        structured = msg.structured_output ?? null;
-        totalTokens = Object.values(msg.modelUsage).reduce(
-          (sum, mu) => sum + mu.inputTokens + mu.outputTokens,
-          0,
-        );
-      } else {
-        return {
-          status: 'error',
-          summary: `Spec SDK error: ${msg.subtype}`,
-          tokensUsed: totalTokens,
-        };
-      }
-    }
+    });
+  } catch (err) {
+    return {
+      status: 'error',
+      summary: `Spec API error: ${String(err)}`,
+    };
   }
 
-  if (!structured || typeof structured !== 'object') {
-    return { status: 'error', summary: 'Spec: no structured output returned' };
-  }
-
-  const out = structured as Record<string, unknown>;
-  const status = (out['status'] as AgentResult['status']) ?? 'error';
+  const { output, tokensUsed } = result;
+  const status = output.status ?? 'error';
 
   if (status === 'needs_human') {
-    const questions = out['questions'] as string[] | undefined;
+    const questions = output.questions;
     if (questions && questions.length > 0) {
       const commentBody = wrapComment(
         'spec',
@@ -143,32 +127,22 @@ export async function runSpec(ctx: AgentContext): Promise<AgentResult> {
       );
       await ctx.repo.addComment(ctx.issue.number, commentBody);
     }
-    return {
-      status: 'needs_human',
-      summary: (out['summary'] as string) ?? '',
-      questions,
-      tokensUsed: totalTokens,
-    };
+    return { status: 'needs_human', summary: output.summary ?? '', questions, tokensUsed };
   }
 
   if (status === 'ready_for_next_phase') {
-    const specMarkdown = out['specMarkdown'] as string | undefined;
-    if (!specMarkdown) {
+    if (!output.specMarkdown) {
       return { status: 'error', summary: 'Spec: ready_for_next_phase returned without specMarkdown' };
     }
-    const updatedBody = upsertSection(ctx.issue.body, 'SPEC', specMarkdown);
+    const updatedBody = upsertSection(ctx.issue.body, 'SPEC', output.specMarkdown);
     await ctx.repo.updateIssue(ctx.issue.number, { body: updatedBody });
     return {
       status: 'ready_for_next_phase',
       nextPhase: 'arch',
-      summary: (out['summary'] as string) ?? 'Spec complete.',
-      tokensUsed: totalTokens,
+      summary: output.summary ?? 'Spec complete.',
+      tokensUsed,
     };
   }
 
-  return {
-    status,
-    summary: (out['summary'] as string) ?? '',
-    tokensUsed: totalTokens,
-  };
+  return { status, summary: output.summary ?? '', tokensUsed };
 }

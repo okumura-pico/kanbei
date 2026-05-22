@@ -4,12 +4,12 @@ import { isKanbeiComment } from '../../src/github/comments.js';
 import type { AgentContext } from '../../src/orchestrator/index.js';
 import { InMemoryRepoState } from '../_helpers/inMemoryRepoState.js';
 
-vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: vi.fn() }));
+vi.mock('../../src/agents/anthropicQuery.js', () => ({ anthropicQuery: vi.fn() }));
 
-const { query } = await import('@anthropic-ai/claude-agent-sdk');
+const { anthropicQuery } = await import('../../src/agents/anthropicQuery.js');
 const { runArchitect } = await import('../../src/agents/architect.js');
 
-const mockQuery = query as ReturnType<typeof vi.fn>;
+const mockAnthropicQuery = anthropicQuery as ReturnType<typeof vi.fn>;
 
 const ARCH_MD = `## Architecture
 
@@ -63,35 +63,15 @@ function makeCtx(repo: InMemoryRepoState, overrides: Partial<AgentContext> = {})
   };
 }
 
-async function* successQuery(out: unknown, tokens = 400) {
-  yield {
-    type: 'result', subtype: 'success', structured_output: out,
-    modelUsage: { m: { inputTokens: tokens - 100, outputTokens: 100, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0.01, contextWindow: 200000 } },
-    usage: {}, result: '', duration_ms: 300, duration_api_ms: 280,
-    is_error: false, num_turns: 1, total_cost_usd: 0.01, permission_denials: [], uuid: 'u', session_id: 's',
-  };
-}
-
-async function* sdkErrorQuery(subtype: string) {
-  yield {
-    type: 'result', subtype, result: '', duration_ms: 50, duration_api_ms: 40,
-    is_error: true, num_turns: 1, total_cost_usd: 0, usage: {}, modelUsage: {},
-    permission_denials: [], uuid: 'u', session_id: 's',
-  };
-}
-
 describe('runArchitect', () => {
-  beforeEach(() => { mockQuery.mockClear(); });
+  beforeEach(() => { mockAnthropicQuery.mockClear(); });
 
   it('writes ARCH and PLAN sections and returns ready_for_next_phase building', async () => {
     const repo = makeRepo();
-    mockQuery.mockReturnValue(successQuery({
-      status: 'ready_for_next_phase',
-      nextPhase: 'building',
-      summary: 'Design ready.',
-      archMarkdown: ARCH_MD,
-      planMarkdown: PLAN_MD,
-    }));
+    mockAnthropicQuery.mockResolvedValue({
+      output: { status: 'ready_for_next_phase', nextPhase: 'building', summary: 'Design ready.', archMarkdown: ARCH_MD, planMarkdown: PLAN_MD },
+      tokensUsed: 400,
+    });
     const result = await runArchitect(makeCtx(repo));
     expect(result.status).toBe('ready_for_next_phase');
     expect(result.nextPhase).toBe('building');
@@ -104,13 +84,10 @@ describe('runArchitect', () => {
 
   it('preserves the existing SPEC section when writing ARCH and PLAN', async () => {
     const repo = makeRepo();
-    mockQuery.mockReturnValue(successQuery({
-      status: 'ready_for_next_phase',
-      nextPhase: 'building',
-      summary: 'Done.',
-      archMarkdown: ARCH_MD,
-      planMarkdown: PLAN_MD,
-    }));
+    mockAnthropicQuery.mockResolvedValue({
+      output: { status: 'ready_for_next_phase', nextPhase: 'building', summary: 'Done.', archMarkdown: ARCH_MD, planMarkdown: PLAN_MD },
+      tokensUsed: 400,
+    });
     await runArchitect(makeCtx(repo));
     const body = repo.snapshot(7).body;
     expect(body).toContain('KANBEI_SPEC_START');
@@ -120,24 +97,22 @@ describe('runArchitect', () => {
 
   it('returns needs_retry when spec has a critical gap', async () => {
     const repo = makeRepo();
-    mockQuery.mockReturnValue(successQuery({
-      status: 'needs_retry',
-      summary: 'SPEC missing acceptance criteria — cannot proceed.',
-    }));
+    mockAnthropicQuery.mockResolvedValue({
+      output: { status: 'needs_retry', summary: 'SPEC missing acceptance criteria — cannot proceed.' },
+      tokensUsed: 200,
+    });
     const result = await runArchitect(makeCtx(repo));
     expect(result.status).toBe('needs_retry');
     expect(result.summary).toMatch(/SPEC missing/);
-    // No write to issue body
     expect(repo.snapshot(7).body).not.toContain('KANBEI_ARCH_START');
   });
 
   it('posts a comment and returns needs_human when blocked on a question', async () => {
     const repo = makeRepo();
-    mockQuery.mockReturnValue(successQuery({
-      status: 'needs_human',
-      summary: 'Need info.',
-      questions: ['Which state management library?'],
-    }));
+    mockAnthropicQuery.mockResolvedValue({
+      output: { status: 'needs_human', summary: 'Need info.', questions: ['Which state management library?'] },
+      tokensUsed: 200,
+    });
     const result = await runArchitect(makeCtx(repo));
     expect(result.status).toBe('needs_human');
     const comments = repo.snapshot(7).comments;
@@ -146,9 +121,9 @@ describe('runArchitect', () => {
     expect(comments[0]!.body).toContain('Which state management library?');
   });
 
-  it('returns error when SDK reports an error subtype', async () => {
+  it('returns error when API throws', async () => {
     const repo = makeRepo();
-    mockQuery.mockReturnValue(sdkErrorQuery('error_max_turns'));
+    mockAnthropicQuery.mockRejectedValue(new Error('error_max_turns'));
     const result = await runArchitect(makeCtx(repo));
     expect(result.status).toBe('error');
     expect(result.summary).toMatch(/error_max_turns/);
@@ -156,24 +131,20 @@ describe('runArchitect', () => {
 
   it('returns error when ready_for_next_phase but archMarkdown is missing', async () => {
     const repo = makeRepo();
-    mockQuery.mockReturnValue(successQuery({
-      status: 'ready_for_next_phase',
-      summary: 'done',
-      planMarkdown: PLAN_MD,
-      // archMarkdown intentionally omitted
-    }));
+    mockAnthropicQuery.mockResolvedValue({
+      output: { status: 'ready_for_next_phase', summary: 'done', planMarkdown: PLAN_MD },
+      tokensUsed: 300,
+    });
     const result = await runArchitect(makeCtx(repo));
     expect(result.status).toBe('error');
   });
 
   it('returns error when ready_for_next_phase but planMarkdown is missing', async () => {
     const repo = makeRepo();
-    mockQuery.mockReturnValue(successQuery({
-      status: 'ready_for_next_phase',
-      summary: 'done',
-      archMarkdown: ARCH_MD,
-      // planMarkdown intentionally omitted
-    }));
+    mockAnthropicQuery.mockResolvedValue({
+      output: { status: 'ready_for_next_phase', summary: 'done', archMarkdown: ARCH_MD },
+      tokensUsed: 300,
+    });
     const result = await runArchitect(makeCtx(repo));
     expect(result.status).toBe('error');
   });
@@ -195,13 +166,10 @@ Old approach
 <!-- KANBEI_PLAN_END -->`;
 
     const repo = makeRepo(bodyWithOldSections);
-    mockQuery.mockReturnValue(successQuery({
-      status: 'ready_for_next_phase',
-      nextPhase: 'building',
-      summary: 'Revised.',
-      archMarkdown: ARCH_MD,
-      planMarkdown: PLAN_MD,
-    }));
+    mockAnthropicQuery.mockResolvedValue({
+      output: { status: 'ready_for_next_phase', nextPhase: 'building', summary: 'Revised.', archMarkdown: ARCH_MD, planMarkdown: PLAN_MD },
+      tokensUsed: 500,
+    });
     await runArchitect(makeCtx(repo));
     const body = repo.snapshot(7).body;
     expect((body.match(/KANBEI_ARCH_START/g) ?? []).length).toBe(1);
@@ -213,16 +181,22 @@ Old approach
 
   it('includes SPEC content in the prompt', async () => {
     const repo = makeRepo();
-    mockQuery.mockReturnValue(successQuery({ status: 'needs_retry', summary: 'gap' }));
+    mockAnthropicQuery.mockResolvedValue({
+      output: { status: 'needs_retry', summary: 'gap' },
+      tokensUsed: 200,
+    });
     await runArchitect(makeCtx(repo));
-    const [callArgs] = mockQuery.mock.lastCall!;
+    const [callArgs] = mockAnthropicQuery.mock.lastCall!;
     expect(callArgs.prompt).toContain('Dark mode support');
     expect(callArgs.prompt).toContain('AC1: Toggle persists');
   });
 
   it('accumulates token usage correctly', async () => {
     const repo = makeRepo();
-    mockQuery.mockReturnValue(successQuery({ status: 'needs_retry', summary: 'gap' }, 700));
+    mockAnthropicQuery.mockResolvedValue({
+      output: { status: 'needs_retry', summary: 'gap' },
+      tokensUsed: 700,
+    });
     const result = await runArchitect(makeCtx(repo));
     expect(result.tokensUsed).toBe(700);
   });

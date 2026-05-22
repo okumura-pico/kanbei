@@ -2,8 +2,9 @@
 //
 // Reads the SPEC section and produces an ARCH (technical design) and
 // PLAN (ordered checklist) written into the issue body.
+// Uses @anthropic-ai/sdk directly (no Claude Code subprocess).
 
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { anthropicQuery } from './anthropicQuery.js';
 import { readSection, upsertSection } from '../github/body.js';
 import { wrapComment } from '../github/comments.js';
 import type { AgentContext } from '../orchestrator/index.js';
@@ -90,68 +91,55 @@ function buildPrompt(ctx: AgentContext): string {
   return lines.join('\n');
 }
 
+interface ArchitectOutput {
+  status: AgentResult['status'];
+  nextPhase?: string;
+  summary: string;
+  archMarkdown?: string;
+  planMarkdown?: string;
+  questions?: string[];
+}
+
 export async function runArchitect(ctx: AgentContext): Promise<AgentResult> {
   const model = ctx.config.agents.architect.model || DEFAULT_MODEL;
 
-  const q = query({
-    prompt: buildPrompt(ctx),
-    options: {
+  let result: { output: ArchitectOutput; tokensUsed: number };
+
+  try {
+    result = await anthropicQuery<ArchitectOutput>({
       model,
-      systemPrompt: SYSTEM_PROMPT,
-      tools: [],
-      persistSession: false,
-      outputFormat: {
-        type: 'json_schema',
-        schema: {
-          type: 'object',
-          required: ['status', 'summary'],
-          properties: {
-            status: {
-              type: 'string',
-              enum: ['ready_for_next_phase', 'needs_human', 'needs_retry', 'error'],
-            },
-            nextPhase: { type: 'string' },
-            summary: { type: 'string' },
-            archMarkdown: { type: 'string' },
-            planMarkdown: { type: 'string' },
-            questions: { type: 'array', items: { type: 'string' } },
+      system: SYSTEM_PROMPT,
+      prompt: buildPrompt(ctx),
+      toolName: 'architect_output',
+      schema: {
+        type: 'object',
+        required: ['status', 'summary'],
+        properties: {
+          status: {
+            type: 'string',
+            enum: ['ready_for_next_phase', 'needs_human', 'needs_retry', 'error'],
           },
-          additionalProperties: false,
+          nextPhase: { type: 'string' },
+          summary: { type: 'string' },
+          archMarkdown: { type: 'string' },
+          planMarkdown: { type: 'string' },
+          questions: { type: 'array', items: { type: 'string' } },
         },
+        additionalProperties: false,
       },
-    },
-  });
-
-  let totalTokens = 0;
-  let structured: unknown = null;
-
-  for await (const msg of q) {
-    if (msg.type === 'result') {
-      if (msg.subtype === 'success') {
-        structured = msg.structured_output ?? null;
-        totalTokens = Object.values(msg.modelUsage).reduce(
-          (sum, mu) => sum + mu.inputTokens + mu.outputTokens,
-          0,
-        );
-      } else {
-        return {
-          status: 'error',
-          summary: `Architect SDK error: ${msg.subtype}`,
-          tokensUsed: totalTokens,
-        };
-      }
-    }
+    });
+  } catch (err) {
+    return {
+      status: 'error',
+      summary: `Architect API error: ${String(err)}`,
+    };
   }
 
-  if (!structured || typeof structured !== 'object') {
-    return { status: 'error', summary: 'Architect: no structured output returned' };
-  }
-
-  const out = structured as Record<string, unknown>;
-  const status = (out['status'] as AgentResult['status']) ?? 'error';
+  const { output, tokensUsed } = result;
+  const status = output.status ?? 'error';
 
   if (status === 'needs_human') {
-    const questions = out['questions'] as string[] | undefined;
+    const questions = output.questions;
     if (questions && questions.length > 0) {
       const commentBody = wrapComment(
         'architect',
@@ -159,46 +147,35 @@ export async function runArchitect(ctx: AgentContext): Promise<AgentResult> {
       );
       await ctx.repo.addComment(ctx.issue.number, commentBody);
     }
-    return {
-      status: 'needs_human',
-      summary: (out['summary'] as string) ?? '',
-      questions,
-      tokensUsed: totalTokens,
-    };
+    return { status: 'needs_human', summary: output.summary ?? '', questions, tokensUsed };
   }
 
   if (status === 'needs_retry') {
     return {
       status: 'needs_retry',
-      summary: (out['summary'] as string) ?? 'Architect: spec gap detected, retry needed.',
-      tokensUsed: totalTokens,
+      summary: output.summary ?? 'Architect: spec gap detected, retry needed.',
+      tokensUsed,
     };
   }
 
   if (status === 'ready_for_next_phase') {
-    const archMarkdown = out['archMarkdown'] as string | undefined;
-    const planMarkdown = out['planMarkdown'] as string | undefined;
-    if (!archMarkdown || !planMarkdown) {
+    if (!output.archMarkdown || !output.planMarkdown) {
       return {
         status: 'error',
         summary: 'Architect: ready_for_next_phase returned without archMarkdown or planMarkdown',
       };
     }
     let body = ctx.issue.body;
-    body = upsertSection(body, 'ARCH', archMarkdown);
-    body = upsertSection(body, 'PLAN', planMarkdown);
+    body = upsertSection(body, 'ARCH', output.archMarkdown);
+    body = upsertSection(body, 'PLAN', output.planMarkdown);
     await ctx.repo.updateIssue(ctx.issue.number, { body });
     return {
       status: 'ready_for_next_phase',
       nextPhase: 'building',
-      summary: (out['summary'] as string) ?? 'Architecture and plan written.',
-      tokensUsed: totalTokens,
+      summary: output.summary ?? 'Architecture and plan written.',
+      tokensUsed,
     };
   }
 
-  return {
-    status,
-    summary: (out['summary'] as string) ?? '',
-    tokensUsed: totalTokens,
-  };
+  return { status, summary: output.summary ?? '', tokensUsed };
 }
