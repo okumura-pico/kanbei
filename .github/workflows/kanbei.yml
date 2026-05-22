@@ -31,12 +31,22 @@ jobs:
       pull-requests: write   # open PRs
 
     steps:
+      # Generate a short-lived GitHub App installation token so that
+      # pushes and API calls are made as the kanbei-bot identity, not
+      # as github-actions[bot]. No separate PAT secret required.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id:      ${{ secrets.KANBEI_APP_ID }}
+          private-key: ${{ secrets.KANBEI_APP_PRIVATE_KEY }}
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           # Full history lets kanbei branch from any ref.
           fetch-depth: 0
-          token: ${{ secrets.KANBEI_GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -49,9 +59,10 @@ jobs:
 
       - name: Run kanbei
         env:
-          # GitHub App credentials — store these as repo secrets.
+          # GitHub App credentials — the installation token (from above)
+          # is used for the kanbei Octokit client as well.
           KANBEI_APP_ID:              ${{ secrets.KANBEI_APP_ID }}
-          KANBEI_APP_INSTALLATION_ID: ${{ secrets.KANBEI_APP_INSTALLATION_ID }}
+          KANBEI_APP_INSTALLATION_ID: ${{ steps.app-token.outputs.installation-id }}
           KANBEI_APP_PRIVATE_KEY:     ${{ secrets.KANBEI_APP_PRIVATE_KEY }}
           # Anthropic API key for Claude.
           ANTHROPIC_API_KEY:          ${{ secrets.ANTHROPIC_API_KEY }}

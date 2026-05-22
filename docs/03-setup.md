@@ -1,6 +1,6 @@
 # Kanbei セットアップ手順
 
-最終更新: 2026-05-22 (kanbei init / GitHub Actions 追記)
+最終更新: 2026-05-22 (kanbei init / GitHub Actions 追記 / App トークン自動生成)
 
 ローカルで `kanbei <github-url>` を動かすまでの初回セットアップ手順。基本方針は `docs/00-overview.md` / 認証フローの詳細は `docs/01-architecture.md` §7。
 
@@ -189,11 +189,12 @@ npm test
 
 | Secret 名 | 値 |
 |-----------|-----|
-| `KANBEI_APP_ID` | GitHub App の App ID |
-| `KANBEI_APP_INSTALLATION_ID` | インストール ID |
+| `KANBEI_APP_ID` | GitHub App の App ID (数値) |
 | `KANBEI_APP_PRIVATE_KEY` | PEM 本文 (改行含む) |
 | `ANTHROPIC_API_KEY` | Anthropic API キー |
-| `KANBEI_GITHUB_TOKEN` | ブランチ push 用 PAT または App トークン (`contents:write`) |
+
+`KANBEI_APP_INSTALLATION_ID` と `KANBEI_GITHUB_TOKEN` は **不要**。  
+ワークフローが `actions/create-github-app-token@v1` を使ってインストールトークンを自動生成し、Installation ID も出力から取得する。
 
 トリガー条件:
 - **`kanbei:` ラベルを Issue に付けた瞬間** → `run` コマンドが起動
@@ -209,6 +210,6 @@ npm test
 
 ## 9. 残課題
 
-- Actions の `KANBEI_GITHUB_TOKEN` を GitHub App のインストールトークン自動取得に変更
 - `kanbei.config.yaml` の `branchPattern` を Organizations 規約に合わせる
 - マルチリポジトリ対応 (現在はセルフホスティング前提)
+- `npm publish` 対応 (現在 `"private": true`)
